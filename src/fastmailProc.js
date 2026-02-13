@@ -1,6 +1,9 @@
-import { readFileSync } from 'fs';
+import { readFileSync, appendFileSync, existsSync } from 'fs';
 import { createWriteStream } from 'fs';
 import fetch from 'node-fetch';
+
+const SAVE_SUBJECTS  = true;
+const PROCESS_LABELS = false;
 
 const JMAP_API_URL = "https://api.fastmail.com/jmap/api/";
 
@@ -128,6 +131,30 @@ async function processMessages() {
   const startTime = Date.now();
   const labelsAdded = {};
   const labelsRemoved = {};
+  let subjectsByLabel = {}; // Map of label -> Set of from names
+  let subjectLinesByLabel = {}; // Map of label -> array of subject lines
+  
+  // Load existing subjects to avoid duplicates
+  if (SAVE_SUBJECTS) {
+    if (existsSync('subjects.txt')) {
+      const existingContent = readFileSync('subjects.txt', 'utf8');
+      const lines = existingContent.split('\n');
+      let currentLabel = null;
+      
+      for (const line of lines) {
+        if (line.match(/^=======.*=======$/)) {
+          // Extract label name from header
+          currentLabel = line.replace(/^=======\s*/, '').replace(/\s*=======\s*$/, '');
+          if (!subjectsByLabel[currentLabel]) {
+            subjectsByLabel[currentLabel] = new Set();
+          }
+        } else if (line.trim() && currentLabel && line.includes(' | ')) {
+          const fromName = line.split(' | ')[0];
+          subjectsByLabel[currentLabel].add(fromName);
+        }
+      }
+    }
+  }
   
   // Get session to find account ID
   const sessionResponse = await fetch('https://api.fastmail.com/.well-known/jmap', {
@@ -242,26 +269,44 @@ async function processMessages() {
           const labelName = rule['add-label'];
           const mailboxId = mailboxNameToId[labelName];
           if (mailboxId) {
-            messageUpdates.mailboxIds[mailboxId] = true;
-            messageModified = true;
-            labelsAdded[labelName] = (labelsAdded[labelName] || 0) + 1;
+            if (PROCESS_LABELS) {
+              messageUpdates.mailboxIds[mailboxId] = true;
+              messageModified = true;
+              labelsAdded[labelName] = (labelsAdded[labelName] || 0) + 1;
+            }
+            
+            // Track subject for messages that had a label added
+            if (SAVE_SUBJECTS && message.subject) {
+              const fromName = message.from?.[0]?.name || message.from?.[0]?.email || 'Unknown';
+              
+              if (!subjectsByLabel[labelName]) {
+                subjectsByLabel[labelName] = new Set();
+                subjectLinesByLabel[labelName] = [];
+              }
+              
+              if (!subjectsByLabel[labelName].has(fromName)) {
+                const subjectLine = `${fromName} | ${message.subject}`;
+                subjectsByLabel[labelName].add(fromName);
+                subjectLinesByLabel[labelName].push(subjectLine);
+              }
+            }
           }
         }
         
         if (rule['remove-label']) {
           const labelName = rule['remove-label'];
           const mailboxId = mailboxNameToId[labelName];
-          if (mailboxId) {
+          if (mailboxId && PROCESS_LABELS) {
             delete messageUpdates.mailboxIds[mailboxId];
             messageModified = true;
             labelsRemoved[labelName] = (labelsRemoved[labelName] || 0) + 1;
           }
           // Also remove any matching keywords (for cleanup)
-          if (messageUpdates.keywords[labelName]) {
+          if (PROCESS_LABELS && messageUpdates.keywords[labelName]) {
             delete messageUpdates.keywords[labelName];
             messageModified = true;
           }
-          if (messageUpdates.keywords[labelName.toLowerCase()]) {
+          if (PROCESS_LABELS && messageUpdates.keywords[labelName.toLowerCase()]) {
             delete messageUpdates.keywords[labelName.toLowerCase()];
             messageModified = true;
           }
@@ -300,6 +345,31 @@ async function processMessages() {
   
   for (const [label, count] of Object.entries(labelsRemoved)) {
     console.log(`  Removed label from ${count} messages:  ${label}`);
+  }
+  
+  // Save new subjects to file organized by label
+  if (SAVE_SUBJECTS && Object.keys(subjectLinesByLabel).length > 0) {
+    const sections = [];
+    let totalNewSubjects = 0;
+    
+    for (const [label, subjects] of Object.entries(subjectLinesByLabel)) {
+      if (subjects.length > 0) {
+        // Sort subjects by from name
+        subjects.sort((a, b) => {
+          const nameA = a.split(' | ')[0].toLowerCase();
+          const nameB = b.split(' | ')[0].toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        
+        sections.push(`\n======= ${label} =======\n${subjects.join('\n')}`);
+        totalNewSubjects += subjects.length;
+      }
+    }
+    
+    if (sections.length > 0) {
+      appendFileSync('subjects.txt', sections.join('\n') + '\n', 'utf8');
+      console.log(`  Saved ${totalNewSubjects} new subject(s) to subjects.txt`);
+    }
   }
 }
 
