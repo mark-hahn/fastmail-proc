@@ -1,0 +1,18 @@
+{
+  "scan-folder": "SENT",
+  "max-messages": 10,
+  "rule-list": [
+    // rule 1
+    {
+      "header": "X-ME-VSCategory",
+      "contains": "commercial",
+      "add-label": "destPromotion"
+    },
+    // rule 2
+    {
+      "to": true,
+      "exact": "mark@hahnca.com",
+      "add-label": "destAddr"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "fastmail-proc",
+  "version": "1.0.0",
+  "description": "JMAP-based Fastmail message processor",
+  "main": "src/fastmailProc.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/fastmailProc.js"
+  },
+  "keywords": ["fastmail", "jmap", "email"],
+  "author": "Mark Hahn",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
