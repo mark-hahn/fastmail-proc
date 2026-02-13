@@ -2,13 +2,13 @@ import { readFileSync } from 'fs';
 import { createWriteStream } from 'fs';
 import fetch from 'node-fetch';
 
-const FASTMAIL_USER = "mark";
 const JMAP_API_URL = "https://api.fastmail.com/jmap/api/";
 
 // Load tokens and rules
 const jmapTokens = JSON.parse(readFileSync('./secrets/jmapTokens.json', 'utf8'));
 const rules = JSON.parse(readFileSync('./rules.jsonc', 'utf8').replace(/\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'));
 
+const FASTMAIL_USER = rules.user;
 const apiToken = jmapTokens[FASTMAIL_USER];
 if (!apiToken) {
   console.error(`No API token found for user: ${FASTMAIL_USER}`);

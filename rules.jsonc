@@ -1,4 +1,5 @@
 {
+  "user": "mark",
   "scan-folder": "Trash",
   "max-messages": 3,
   "rule-list": [
