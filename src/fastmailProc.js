@@ -225,11 +225,22 @@ async function processMessages() {
           console.log(`    Removing label: ${labelName}`);
           const mailboxId = mailboxNameToId[labelName];
           if (mailboxId) {
-            console.log(`      Mailbox ID: ${mailboxId}`);
+            console.log(`      Removing mailbox ID: ${mailboxId}`);
             delete messageUpdates.mailboxIds[mailboxId];
             messageModified = true;
           } else {
             console.log(`      Warning: No mailbox found with name "${labelName}"`);
+          }
+          // Also remove any matching keywords (for cleanup)
+          if (messageUpdates.keywords[labelName]) {
+            console.log(`      Removing keyword: ${labelName}`);
+            delete messageUpdates.keywords[labelName];
+            messageModified = true;
+          }
+          if (messageUpdates.keywords[labelName.toLowerCase()]) {
+            console.log(`      Removing keyword: ${labelName.toLowerCase()}`);
+            delete messageUpdates.keywords[labelName.toLowerCase()];
+            messageModified = true;
           }
         }
         
