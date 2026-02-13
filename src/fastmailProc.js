@@ -120,7 +120,7 @@ function testRule(textString, rule) {
 
 async function processMessages() {
   console.log('');
-  console.log(`fastmail processing ...`);
+  console.log(`Fastmail processing ${rules.user} ...`);
   console.log(`   Source folder: ${rules['scan-folder']}`);
   console.log(`   From message:   ${rules['first-message']}`);
   console.log(`   Max messages:   ${rules['max-messages']}`);
