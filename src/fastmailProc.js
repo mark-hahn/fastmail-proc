@@ -114,7 +114,12 @@ function testRule(textString, rule) {
 }
 
 async function processMessages() {
+  console.log('');
   console.log(`Fastmail processor: scanning ${rules['scan-folder']}, max ${rules['max-messages']} messages`);
+  
+  const startTime = Date.now();
+  const labelsAdded = {};
+  const labelsRemoved = {};
   
   // Get session to find account ID
   const sessionResponse = await fetch('https://api.fastmail.com/.well-known/jmap', {
@@ -159,7 +164,8 @@ async function processMessages() {
   const emailIds = queryResponse.methodResponses[0][1].ids;
   
   if (emailIds.length === 0) {
-    console.log('No messages found');
+    const elapsedSecs = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`Scan finished ${elapsedSecs} secs, 0 processed`);
     return;
   }
   
@@ -196,9 +202,9 @@ async function processMessages() {
           const labelName = rule['add-label'];
           const mailboxId = mailboxNameToId[labelName];
           if (mailboxId) {
-            console.log(`${message.subject} -> add label ${labelName}`);
             messageUpdates.mailboxIds[mailboxId] = true;
             messageModified = true;
+            labelsAdded[labelName] = (labelsAdded[labelName] || 0) + 1;
           }
         }
         
@@ -206,9 +212,9 @@ async function processMessages() {
           const labelName = rule['remove-label'];
           const mailboxId = mailboxNameToId[labelName];
           if (mailboxId) {
-            console.log(`${message.subject} -> remove label ${labelName}`);
             delete messageUpdates.mailboxIds[mailboxId];
             messageModified = true;
+            labelsRemoved[labelName] = (labelsRemoved[labelName] || 0) + 1;
           }
           // Also remove any matching keywords (for cleanup)
           if (messageUpdates.keywords[labelName]) {
@@ -243,7 +249,18 @@ async function processMessages() {
     ]);
   }
   
-  console.log('');
+  const elapsedSecs = ((Date.now() - startTime) / 1000).toFixed(1);
+  const processedCount = messages.length;
+  
+  console.log(`Scan finished ${elapsedSecs} secs, ${processedCount} processed`);
+  
+  for (const [label, count] of Object.entries(labelsAdded)) {
+    console.log(`  Added   label to   ${count} messages:  ${label}`);
+  }
+  
+  for (const [label, count] of Object.entries(labelsRemoved)) {
+    console.log(`  Removed label from ${count} messages:  ${label}`);
+  }
 }
 
 // Run the processor

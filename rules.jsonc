@@ -1,5 +1,5 @@
 {
-  "scan-folder": "SENT",
+  "scan-folder": "Trash",
   "max-messages": 3,
   "rule-list": [
     // rule 1
@@ -11,7 +11,7 @@
     // rule 2
     {
       "to": true,
-      "exact": "dana@hahnca.com",
+      "exact": "mark@hahnca.com",
       "add-label": "destAddr"
     }
   ]
