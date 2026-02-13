@@ -102,7 +102,12 @@ function testRule(textString, rule) {
   }
   
   if (rule.contains !== undefined) {
-    if (!textString.includes(rule.contains.toLowerCase())) return false;
+    if (Array.isArray(rule.contains)) {
+      const found = rule.contains.some(str => textString.includes(str.toLowerCase()));
+      if (!found) return false;
+    } else {
+      if (!textString.includes(rule.contains.toLowerCase())) return false;
+    }
   }
   
   if (rule['one-of'] !== undefined) {
@@ -115,7 +120,10 @@ function testRule(textString, rule) {
 
 async function processMessages() {
   console.log('');
-  console.log(`Fastmail processor: scanning ${rules['scan-folder']}, max ${rules['max-messages']} messages`);
+  console.log(`fastmail processing ...`);
+  console.log(`   Source folder: ${rules['scan-folder']}`);
+  console.log(`   From message:   ${rules['first-message']}`);
+  console.log(`   Max messages:   ${rules['max-messages']}`);
   
   const startTime = Date.now();
   const labelsAdded = {};
@@ -136,6 +144,38 @@ async function processMessages() {
   
   // Get mailbox ID for scan folder
   const mailboxes = accountResponse.methodResponses[0][1].list;
+  
+  // Create required folders if they don't exist
+  const requiredFolders = ['Promotions', 'Social', 'Updates', 'Receipts'];
+  const existingFolderNames = mailboxes.map(mb => mb.name);
+  const foldersToCreate = requiredFolders.filter(folder => !existingFolderNames.includes(folder));
+  
+  if (foldersToCreate.length > 0) {
+    const createRequests = {};
+    foldersToCreate.forEach((folderName, index) => {
+      createRequests[`create${index}`] = {
+        name: folderName,
+        parentId: null,
+        role: null
+      };
+    });
+    
+    console.log(`Creating folders: ${foldersToCreate.join(', ')}`);
+    const createResponse = await jmapRequest([
+      ['Mailbox/set', {
+        accountId,
+        create: createRequests
+      }, 'mailboxCreate']
+    ]);
+    
+    // Add newly created mailboxes to our list
+    const created = createResponse.methodResponses[0][1].created;
+    if (created) {
+      for (const [tempId, mailbox] of Object.entries(created)) {
+        mailboxes.push({ id: mailbox.id, name: createRequests[tempId].name });
+      }
+    }
+  }
   
   // Create mailbox name to ID map
   const mailboxNameToId = {};

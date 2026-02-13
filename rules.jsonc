@@ -1,19 +1,39 @@
 {
-  "user": "mark",
-  "scan-folder": "Trash",
-  "max-messages": 3,
+  "user": "linda",
+  "scan-folder": "inbox",
+  "first-message": 1,
+  "max-messages": 10,
+  "Folders": [],
   "rule-list": [
     // rule 1
     {
       "header": "X-ME-VSCategory",
       "contains": "commercial",
-      "add-label": "destPromotion"
+      "add-label": "Promotions"
     },
     // rule 2
     {
-      "to": true,
-      "exact": "mark@hahnca.com",
-      "add-label": "destAddr"
+      "header": "X-ME-VSCategory",
+      "contains": "community",
+      "add-label": "Social"
+    },
+    // rule 3
+    {
+      "header": "X-ME-VSCategory",
+      "contains": "purchases",
+      "add-label": "Receipts"
+    },
+    // rule 4
+    {
+      "header": "X-ME-VSCategory",
+      "contains": "alerts",
+      "add-label": "updates"
+    },
+    // rule 5
+    {
+      "subject": true,
+      "contains": ["sale", "deal", "offer", "discount", "offer", "promo", "coupon"],
+      "add-label": "Promotions"
     }
   ]
 }
