@@ -123,7 +123,7 @@ async function processMessages() {
   console.log(`Fastmail processing ${rules.user} ...`);
   console.log(`   Source folder: ${rules['scan-folder']}`);
   console.log(`   From message:   ${rules['first-message']}`);
-  console.log(`   Max messages:   ${rules['max-messages']}`);
+  console.log(`   To message:     ${rules['last-message']}`);
   
   const startTime = Date.now();
   const labelsAdded = {};
@@ -197,7 +197,7 @@ async function processMessages() {
       accountId,
       filter: { inMailbox: scanMailbox.id },
       sort: [{ property: 'receivedAt', isAscending: false }],
-      limit: rules['max-messages']
+      limit: rules['last-message'] - rules['first-message'] + 1
     }, 'emailQuery']
   ]);
   
