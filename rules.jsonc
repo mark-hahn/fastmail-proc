@@ -11,7 +11,7 @@
     // rule 2
     {
       "to": true,
-      "exact": "mark@hahnca.com",
+      "exact": "linda@hahnca.com",
       "add-label": "destAddr"
     }
   ]
