@@ -146,7 +146,7 @@ async function processMessages() {
   const mailboxes = accountResponse.methodResponses[0][1].list;
   
   // Create required folders if they don't exist
-  const requiredFolders = ['Promotions', 'Social', 'Updates', 'Receipts'];
+  const requiredFolders = rules.Folders || [];
   const existingFolderNames = mailboxes.map(mb => mb.name);
   const foldersToCreate = requiredFolders.filter(folder => !existingFolderNames.includes(folder));
   

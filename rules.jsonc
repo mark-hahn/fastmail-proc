@@ -10,7 +10,8 @@
       "header": "X-ME-VSCategory",
       "contains": "commercial",
       "add-label": "Promotions"
-    },
+    }
+    ,
     // rule 2
     {
       "header": "X-ME-VSCategory",
@@ -27,9 +28,15 @@
     {
       "header": "X-ME-VSCategory",
       "contains": "alerts",
-      "add-label": "updates"
+      "add-label": "Updates"
     },
     // rule 5
+    {
+      "header": "X-ME-VSCategory",
+      "contains": "phishing",
+      "add-label": "Spam"
+    },
+    // rule 6
     {
       "subject": true,
       "contains": ["sale", "deal", "offer", "discount", "offer", "promo", "coupon"],

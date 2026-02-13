@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+import { readFileSync } from 'fs';
+import fetch from 'node-fetch';
+
+const FASTMAIL_USER = "linda";
+const FOLDERS = [`Promotions`, `Social`, `Updates`, `Receipts`];
+const JMAP_API_URL = "https://api.fastmail.com/jmap/api/";
+const jmapTokens = JSON.parse(readFileSync('./secrets/jmapTokens.json', 'utf8'));
+const apiToken = jmapTokens[FASTMAIL_USER];
+
+async function jmapRequest(methodCalls) {
+  const response = await fetch(JMAP_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiToken}`
+    },
+    body: JSON.stringify({
+      using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'],
+      methodCalls
+    })
+  });
+  return await response.json();
+}
+
+async function removeLabels() {
+  console.log(`Cleaning up folders: ${FOLDERS.join(', ')}...`);
+  
+  const sessionResponse = await fetch('https://api.fastmail.com/.well-known/jmap', {
+    headers: { 'Authorization': `Bearer ${apiToken}` }
+  });
+  const session = await sessionResponse.json();
+  const accountId = session.primaryAccounts['urn:ietf:params:jmap:mail'];
+
+  const accountResponse = await jmapRequest([
+    ['Mailbox/get', { accountId }, 'mailboxes']
+  ]);
+
+  const mailboxes = accountResponse.methodResponses[0][1].list;
+  const mailboxMap = {};
+  mailboxes.forEach(mb => mailboxMap[mb.name] = mb.id);
+
+  const foldersToClean = [];
+  for (const folderName of FOLDERS) {
+    const folderId = mailboxMap[folderName];
+    if (folderId) {
+      foldersToClean.push({ name: folderName, id: folderId });
+    }
+  }
+
+  if (foldersToClean.length === 0) {
+    console.log('No folders to clean');
+    return;
+  }
+
+  for (const folder of foldersToClean) {
+    const queryResponse = await jmapRequest([
+      ['Email/query', {
+        accountId,
+        filter: { inMailbox: folder.id },
+        sort: [{ property: 'receivedAt', isAscending: false }]
+      }, 'query']
+    ]);
+
+    const emailIds = queryResponse.methodResponses[0][1].ids;
+    
+    if (emailIds.length === 0) {
+      console.log(`${folder.name}: no messages`);
+      continue;
+    }
+
+    console.log(`${folder.name}: ${emailIds.length} messages`);
+
+    const getResponse = await jmapRequest([
+      ['Email/get', {
+        accountId,
+        ids: emailIds,
+        properties: ['id', 'subject', 'mailboxIds', 'keywords']
+      }, 'get']
+    ]);
+
+    const messages = getResponse.methodResponses[0][1].list;
+    const updates = {};
+    
+    // Collect all folder IDs to remove
+    const folderIdsToRemove = foldersToClean.map(f => f.id);
+
+    for (const message of messages) {
+      const newMailboxIds = { ...message.mailboxIds };
+      const newKeywords = { ...message.keywords };
+      
+      // Remove all folder IDs
+      for (const folderId of folderIdsToRemove) {
+        delete newMailboxIds[folderId];
+      }
+      
+      // Remove all folder name keywords (case variations)
+      for (const folderName of FOLDERS) {
+        delete newKeywords[folderName];
+        delete newKeywords[folderName.toLowerCase()];
+      }
+
+      if (Object.keys(newMailboxIds).length > 0) {
+        updates[message.id] = {
+          mailboxIds: newMailboxIds,
+          keywords: newKeywords
+        };
+      } else {
+        console.log(`  Skipping ${message.subject} - would have no folders left`);
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await jmapRequest([
+        ['Email/set', {
+          accountId,
+          update: updates
+        }, 'update']
+      ]);
+      console.log(`  Updated ${Object.keys(updates).length} messages`);
+    }
+  }
+
+  console.log('');
+}
+
+removeLabels().catch(error => {
+  console.error('Error:', error.message);
+  process.exit(1);
+});
