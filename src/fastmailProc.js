@@ -118,15 +118,33 @@ async function processMessages() {
   console.log(`Scan folder: ${rules['scan-folder']}`);
   console.log(`Max messages: ${rules['max-messages']}`);
   
-  // Get account ID
-  const accountResponse = await jmapRequest([
-    ['Mailbox/get', { accountId: null }, 'mailboxes']
-  ]);
+  // Get session to find account ID
+  const sessionResponse = await fetch('https://api.fastmail.com/.well-known/jmap', {
+    headers: { 'Authorization': `Bearer ${apiToken}` }
+  });
   
-  const accountId = Object.keys(accountResponse.methodResponses[0][1].state)[0] || accountResponse.methodResponses[0][1].accountId;
+  const session = await sessionResponse.json();
+  const accountId = session.primaryAccounts['urn:ietf:params:jmap:mail'];
+  
+  console.log(`Account ID: ${accountId}`);
+  
+  // Get mailboxes
+  const accountResponse = await jmapRequest([
+    ['Mailbox/get', { accountId }, 'mailboxes']
+  ]);
   
   // Get mailbox ID for scan folder
   const mailboxes = accountResponse.methodResponses[0][1].list;
+  console.log(`\nAvailable mailboxes:`);
+  mailboxes.forEach(mb => console.log(`  - ${mb.name} (role: ${mb.role || 'none'}, id: ${mb.id})`));
+  
+  // Create mailbox name to ID map
+  const mailboxNameToId = {};
+  mailboxes.forEach(mb => {
+    mailboxNameToId[mb.name] = mb.id;
+    mailboxNameToId[mb.name.toLowerCase()] = mb.id;
+  });
+  
   const scanMailbox = mailboxes.find(mb => mb.name.toLowerCase() === rules['scan-folder'].toLowerCase());
   
   if (!scanMailbox) {
@@ -134,7 +152,7 @@ async function processMessages() {
     process.exit(1);
   }
   
-  console.log(`Found mailbox: ${scanMailbox.name} (${scanMailbox.id})`);
+  console.log(`\nScanning mailbox: ${scanMailbox.name} (${scanMailbox.id})`);
   
   // Query messages
   const queryResponse = await jmapRequest([
@@ -173,7 +191,13 @@ async function processMessages() {
     if (stopProcessing) break;
     
     console.log(`\nProcessing: ${message.subject}`);
-    const messageUpdates = { keywords: { ...message.keywords } };
+    console.log(`  Message ID: ${message.id}`);
+    console.log(`  Current mailboxIds: ${JSON.stringify(message.mailboxIds)}`);
+    console.log(`  Current keywords: ${JSON.stringify(message.keywords)}`);
+    const messageUpdates = { 
+      mailboxIds: { ...message.mailboxIds },
+      keywords: { ...message.keywords } 
+    };
     let messageModified = false;
     
     // Apply each rule
@@ -184,15 +208,29 @@ async function processMessages() {
         console.log(`  Rule matched`);
         
         if (rule['add-label']) {
-          console.log(`    Adding label: ${rule['add-label']}`);
-          messageUpdates.keywords[rule['add-label']] = true;
-          messageModified = true;
+          const labelName = rule['add-label'];
+          console.log(`    Adding label: ${labelName}`);
+          const mailboxId = mailboxNameToId[labelName];
+          if (mailboxId) {
+            console.log(`      Mailbox ID: ${mailboxId}`);
+            messageUpdates.mailboxIds[mailboxId] = true;
+            messageModified = true;
+          } else {
+            console.log(`      Warning: No mailbox found with name "${labelName}"`);
+          }
         }
         
         if (rule['remove-label']) {
-          console.log(`    Removing label: ${rule['remove-label']}`);
-          delete messageUpdates.keywords[rule['remove-label']];
-          messageModified = true;
+          const labelName = rule['remove-label'];
+          console.log(`    Removing label: ${labelName}`);
+          const mailboxId = mailboxNameToId[labelName];
+          if (mailboxId) {
+            console.log(`      Mailbox ID: ${mailboxId}`);
+            delete messageUpdates.mailboxIds[mailboxId];
+            messageModified = true;
+          } else {
+            console.log(`      Warning: No mailbox found with name "${labelName}"`);
+          }
         }
         
         if (rule.stop) {
@@ -204,6 +242,8 @@ async function processMessages() {
     }
     
     if (messageModified) {
+      console.log(`  New mailboxIds: ${JSON.stringify(messageUpdates.mailboxIds)}`);
+      console.log(`  New keywords: ${JSON.stringify(messageUpdates.keywords)}`);
       updates[message.id] = messageUpdates;
     }
   }
@@ -212,14 +252,22 @@ async function processMessages() {
   if (Object.keys(updates).length > 0) {
     console.log(`\nApplying updates to ${Object.keys(updates).length} messages`);
     
-    await jmapRequest([
+    const updateResponse = await jmapRequest([
       ['Email/set', {
         accountId,
         update: updates
       }, 'emailUpdate']
     ]);
     
-    console.log('Updates applied successfully');
+    const result = updateResponse.methodResponses[0][1];
+    console.log(`API Response: ${JSON.stringify(result, null, 2)}`);
+    
+    if (result.updated) {
+      console.log(`Successfully updated message IDs: ${Object.keys(result.updated).join(', ')}`);
+    }
+    if (result.notUpdated) {
+      console.log(`Failed to update: ${JSON.stringify(result.notUpdated, null, 2)}`);
+    }
   } else {
     console.log('\nNo updates needed');
   }
