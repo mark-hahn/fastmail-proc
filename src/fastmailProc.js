@@ -147,6 +147,7 @@ async function processMessages() {
           currentLabel = line.replace(/^=======\s*/, '').replace(/\s*=======\s*$/, '');
           if (!subjectsByLabel[currentLabel]) {
             subjectsByLabel[currentLabel] = new Set();
+            subjectLinesByLabel[currentLabel] = [];
           }
         } else if (line.trim() && currentLabel && line.includes(' | ')) {
           const fromName = line.split(' | ')[0];
@@ -347,28 +348,63 @@ async function processMessages() {
     console.log(`  Removed label from ${count} messages:  ${label}`);
   }
   
-  // Save new subjects to file organized by label
-  if (SAVE_SUBJECTS && Object.keys(subjectLinesByLabel).length > 0) {
+  // Save all subjects to file organized by label (rewrite entire file to avoid duplicates)
+  if (SAVE_SUBJECTS && Object.keys(subjectsByLabel).length > 0) {
     const sections = [];
-    let totalNewSubjects = 0;
+    let totalSubjects = 0;
+    let newSubjectsCount = Object.values(subjectLinesByLabel).reduce((sum, arr) => sum + arr.length, 0);
     
-    for (const [label, subjects] of Object.entries(subjectLinesByLabel)) {
-      if (subjects.length > 0) {
-        // Sort subjects by from name
-        subjects.sort((a, b) => {
-          const nameA = a.split(' | ')[0].toLowerCase();
-          const nameB = b.split(' | ')[0].toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
+    // Get all labels sorted alphabetically
+    const allLabels = Object.keys(subjectsByLabel).sort();
+    
+    for (const label of allLabels) {
+      // Convert Set to sorted array
+      const fromNames = Array.from(subjectsByLabel[label]).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      
+      if (fromNames.length > 0) {
+        // Reconstruct subject lines from the existing data
+        const existingContent = existsSync('subjects.txt') ? readFileSync('subjects.txt', 'utf8') : '';
+        const subjectMap = {};
         
-        sections.push(`\n======= ${label} =======\n${subjects.join('\n')}`);
-        totalNewSubjects += subjects.length;
+        // Parse existing subjects for this label
+        const lines = existingContent.split('\n');
+        let inCurrentLabel = false;
+        for (const line of lines) {
+          if (line.match(/^=======.*=======$/)) {
+            const lineLabel = line.replace(/^=======\s*/, '').replace(/\s*=======\s*$/, '');
+            inCurrentLabel = (lineLabel === label);
+          } else if (inCurrentLabel && line.trim() && line.includes(' | ')) {
+            const fromName = line.split(' | ')[0];
+            if (!subjectMap[fromName]) {
+              subjectMap[fromName] = line;
+            }
+          }
+        }
+        
+        // Add new subjects from this run
+        if (subjectLinesByLabel[label]) {
+          for (const subjectLine of subjectLinesByLabel[label]) {
+            const fromName = subjectLine.split(' | ')[0];
+            if (!subjectMap[fromName]) {
+              subjectMap[fromName] = subjectLine;
+            }
+          }
+        }
+        
+        // Create sorted list of all subjects for this label
+        const allSubjects = fromNames.map(fromName => subjectMap[fromName]).filter(Boolean);
+        totalSubjects += allSubjects.length;
+        
+        sections.push(`======= ${label} =======\n${allSubjects.join('\n')}`);
       }
     }
     
     if (sections.length > 0) {
-      appendFileSync('subjects.txt', sections.join('\n') + '\n', 'utf8');
-      console.log(`  Saved ${totalNewSubjects} new subject(s) to subjects.txt`);
+      const { writeFileSync } = await import('fs');
+      writeFileSync('subjects.txt', sections.join('\n\n') + '\n', 'utf8');
+      if (newSubjectsCount > 0) {
+        console.log(`  Saved ${newSubjectsCount} new subject(s) to subjects.txt`);
+      }
     }
   }
 }

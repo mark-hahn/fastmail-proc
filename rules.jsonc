@@ -2,7 +2,7 @@
   "user": "linda",
   "scan-folder": "inbox",
   "first-message": 1,
-  "last-message": 1000,
+  "last-message": 100,
   "Folders": [],
   "rule-list": [
     // rule 1
