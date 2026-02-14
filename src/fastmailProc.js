@@ -438,7 +438,9 @@ async function processMessages() {
         const allSubjects = fromNames.map(fromName => subjectMap[fromName]).filter(Boolean);
         totalSubjects += allSubjects.length;
         
-        sections.push(`======= ${label} =======\n${allSubjects.join('\n')}`);
+        if (allSubjects.length > 0) {
+          sections.push(`======= ${label} =======\n${allSubjects.join('\n')}`);
+        }
       }
     }
     

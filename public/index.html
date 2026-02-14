@@ -301,8 +301,8 @@
     </div>
     
     <!-- Message Modal -->
-    <div v-if="currentMessage" class="modal-overlay" @click.self="closeMessage">
-      <div class="modal-content">
+    <div v-if="currentMessage" class="modal-overlay" @click="closeMessage">
+      <div class="modal-content" @click="closeMessage">
         <div class="modal-header">
           <h3>{{ currentMessage.subject }}</h3>
           <button class="modal-close" @click="closeMessage">&times;</button>
