@@ -3,7 +3,7 @@ import { createWriteStream } from 'fs';
 import fetch from 'node-fetch';
 
 const SAVE_SUBJECTS  = true;
-const PROCESS_LABELS = false;
+const PROCESS_LABELS = true;
 
 const JMAP_API_URL = "https://api.fastmail.com/jmap/api/";
 
@@ -237,17 +237,40 @@ async function processMessages() {
     return;
   }
   
-  // Get message details
-  const getResponse = await jmapRequest([
-    ['Email/get', {
-      accountId,
-      ids: emailIds,
-      properties: ['id', 'subject', 'from', 'to', 'headers', 'keywords', 'mailboxIds', 'textBody', 'bodyValues'],
-      fetchTextBodyValues: true
-    }, 'emailGet']
-  ]);
+  // Get message details in batches (JMAP has maxObjectsInGet limit)
+  const BATCH_SIZE = 256;
+  const messages = [];
   
-  const messages = getResponse.methodResponses[0][1].list;
+  for (let i = 0; i < emailIds.length; i += BATCH_SIZE) {
+    const batchIds = emailIds.slice(i, i + BATCH_SIZE);
+    
+    const getResponse = await jmapRequest([
+      ['Email/get', {
+        accountId,
+        ids: batchIds,
+        properties: ['id', 'subject', 'from', 'to', 'headers', 'keywords', 'mailboxIds', 'textBody', 'bodyValues'],
+        fetchTextBodyValues: true
+      }, 'emailGet']
+    ]);
+    
+    // Check for errors in response
+    if (!getResponse.methodResponses || !getResponse.methodResponses[0]) {
+      console.error('Invalid JMAP response:', JSON.stringify(getResponse, null, 2));
+      process.exit(1);
+    }
+    
+    const responseData = getResponse.methodResponses[0][1];
+    if (!responseData || !responseData.list) {
+      console.error('No message list in response. Response data:', JSON.stringify(responseData, null, 2));
+      process.exit(1);
+    }
+    
+    messages.push(...responseData.list);
+    
+    if (i + BATCH_SIZE < emailIds.length) {
+      console.log(`  Fetched ${messages.length} of ${emailIds.length} messages...`);
+    }
+  }
   const updates = {};
   let stopProcessing = false;
   
