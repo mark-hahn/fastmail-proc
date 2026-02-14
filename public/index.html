@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linda Mail</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    #app {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .controls {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    
+    .exclusions-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+    }
+    
+    .exclusions-toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    
+    .save-btn {
+      padding: 10px 20px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .save-btn:hover {
+      background: #0052a3;
+    }
+    
+    .save-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    
+    th {
+      background: #f0f0f0;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 2px solid #ddd;
+    }
+    
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    tr:hover td {
+      background: #f9f9f9;
+    }
+    
+    .checkbox-col {
+      width: 50px;
+      text-align: center;
+    }
+    
+    .from-col {
+      width: 250px;
+    }
+    
+    .subject-col {
+      width: auto;
+    }
+    
+    .action-col {
+      width: 100px;
+      text-align: center;
+    }
+    
+    .open-btn {
+      padding: 6px 16px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    
+    .open-btn:hover {
+      background: #218838;
+    }
+    
+    .label-row {
+      background: #fff !important;
+    }
+    
+    .label-row td {
+      padding: 20px 12px 8px 12px;
+      font-weight: bold;
+      font-size: 16px;
+      color: #0066cc;
+      border-bottom: none;
+    }
+    
+    .blank-row td {
+      padding: 10px;
+      border-bottom: none;
+    }
+    
+    .message-display {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    
+    .message-display h3 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+    
+    .message-meta {
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .message-body {
+      background: white;
+      padding: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .message-body iframe {
+      width: 100%;
+      border: none;
+      min-height: 400px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+      font-size: 18px;
+    }
+    
+    .error {
+      background: #fee;
+      color: #c33;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    
+    .status {
+      font-size: 14px;
+      color: #666;
+      margin-left: auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Linda Mail</h1>
+    
+    <div class="controls">
+      <label class="exclusions-toggle">
+        <input type="checkbox" v-model="showExclusions" @change="toggleExclusions">
+        Exclusions
+      </label>
+      <button class="save-btn" @click="saveData" :disabled="saving">
+        {{ saving ? 'Saving...' : 'Save' }}
+      </button>
+      <div class="status">{{ statusMessage }}</div>
+    </div>
+    
+    <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="loading" class="loading">Loading...</div>
+    
+    <table v-else>
+      <thead>
+        <tr>
+          <th class="checkbox-col"></th>
+          <th class="from-col">From</th>
+          <th class="subject-col">Subject</th>
+          <th class="action-col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template v-for="(row, index) in displayRows" :key="index">
+          <tr v-if="row.type === 'blank'" class="blank-row">
+            <td colspan="4"></td>
+          </tr>
+          <tr v-else-if="row.type === 'label'" class="label-row">
+            <td></td>
+            <td colspan="3">{{ row.label }}</td>
+          </tr>
+          <tr v-else>
+            <td class="checkbox-col">
+              <input type="checkbox" v-model="row.checked" @change="onCheckboxChange(row)">
+            </td>
+            <td class="from-col">{{ row.fromName }}</td>
+            <td class="subject-col">{{ row.subject }}</td>
+            <td class="action-col">
+              <button class="open-btn" @click="openMessage(row)">Open</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    
+    <div class="controls">
+      <button class="save-btn" @click="saveData" :disabled="saving">
+        {{ saving ? 'Saving...' : 'Save' }}
+      </button>
+    </div>
+    
+    <div v-if="currentMessage" class="message-display">
+      <h3>{{ currentMessage.subject }}</h3>
+      <div class="message-meta">
+        <div><strong>From:</strong> {{ formatAddress(currentMessage.from) }}</div>
+        <div><strong>To:</strong> {{ formatAddress(currentMessage.to) }}</div>
+        <div><strong>Date:</strong> {{ formatDate(currentMessage.receivedAt) }}</div>
+      </div>
+      <div class="message-body">
+        <div v-if="currentMessage.bodyType === 'html'" v-html="currentMessage.bodyContent"></div>
+        <pre v-else>{{ currentMessage.bodyContent }}</pre>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.prod.js';
+
+    createApp({
+      setup() {
+        const showExclusions = ref(false);
+        const loading = ref(true);
+        const saving = ref(false);
+        const error = ref('');
+        const statusMessage = ref('');
+        
+        const subjectsData = ref([]);
+        const exclusionsData = ref([]);
+        const currentMessage = ref(null);
+        
+        let pollInterval = null;
+
+        // Parse file content into structured data
+        function parseContent(content) {
+          const lines = content.split('\n');
+          const data = [];
+          let currentLabel = '';
+          
+          for (const line of lines) {
+            if (line.match(/^=======.*=======$/)) {
+              currentLabel = line.replace(/^=======\s*/, '').replace(/\s*=======\s*$/, '');
+            } else if (line.trim() && line.includes(' | ')) {
+              const parts = line.split(' | ');
+              if (parts.length >= 3) {
+                data.push({
+                  fromName: parts[0],
+                  subject: parts[1],
+                  messageId: parts[2],
+                  label: currentLabel,
+                  checked: false
+                });
+              }
+            }
+          }
+          
+          return data;
+        }
+
+        // Convert data back to file format
+        function serializeContent(data) {
+          const sections = {};
+          
+          // Group by label
+          for (const item of data) {
+            if (!sections[item.label]) {
+              sections[item.label] = [];
+            }
+            sections[item.label].push(item);
+          }
+          
+          // Sort labels
+          const labels = Object.keys(sections).sort();
+          const output = [];
+          
+          for (const label of labels) {
+            output.push(`======= ${label} =======`);
+            const items = sections[label].sort((a, b) => 
+              a.fromName.toLowerCase().localeCompare(b.fromName.toLowerCase())
+            );
+            for (const item of items) {
+              output.push(`${item.fromName} | ${item.subject} | ${item.messageId}`);
+            }
+            output.push('');
+          }
+          
+          return output.join('\n');
+        }
+
+        // Compute display rows with labels
+        const displayRows = computed(() => {
+          const sourceData = showExclusions.value ? exclusionsData.value : subjectsData.value;
+          const rows = [];
+          let lastLabel = '';
+          
+          for (const item of sourceData) {
+            if (item.label !== lastLabel) {
+              if (lastLabel !== '') {
+                rows.push({ type: 'blank' });
+              }
+              rows.push({ type: 'label', label: item.label });
+              lastLabel = item.label;
+            }
+            rows.push({ type: 'data', ...item });
+          }
+          
+          return rows;
+        });
+
+        // Load data from server
+        async function loadData(type) {
+          try {
+            const response = await fetch(`/api/data?type=${type}`);
+            if (!response.ok) throw new Error(`Failed to load ${type}`);
+            const result = await response.json();
+            return parseContent(result.content);
+          } catch (err) {
+            console.error(`Error loading ${type}:`, err);
+            throw err;
+          }
+        }
+
+        // Save data to server
+        async function saveDataToServer(type, content) {
+          const response = await fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, content })
+          });
+          
+          if (!response.ok) throw new Error(`Failed to save ${type}`);
+          return await response.json();
+        }
+
+        // Initial load
+        async function initialize() {
+          try {
+            loading.value = true;
+            error.value = '';
+            
+            [subjectsData.value, exclusionsData.value] = await Promise.all([
+              loadData('subjects'),
+              loadData('exclusions')
+            ]);
+            
+            statusMessage.value = `Loaded ${subjectsData.value.length} subjects, ${exclusionsData.value.length} exclusions`;
+          } catch (err) {
+            error.value = err.message;
+          } finally {
+            loading.value = false;
+          }
+        }
+
+        // Toggle between subjects and exclusions
+        async function toggleExclusions() {
+          currentMessage.value = null;
+        }
+
+        // Save data
+        async function saveData() {
+          try {
+            saving.value = true;
+            error.value = '';
+            statusMessage.value = 'Saving...';
+            
+            const currentList = showExclusions.value ? exclusionsData.value : subjectsData.value;
+            const otherList = showExclusions.value ? subjectsData.value : exclusionsData.value;
+            
+            // Find checked items to move
+            const toMove = currentList.filter(item => item.checked);
+            const toKeep = currentList.filter(item => !item.checked);
+            
+            // Move items to the other list
+            if (toMove.length > 0) {
+              otherList.push(...toMove);
+              // Sort the other list by label and fromName
+              otherList.sort((a, b) => {
+                const labelCmp = a.label.localeCompare(b.label);
+                if (labelCmp !== 0) return labelCmp;
+                return a.fromName.toLowerCase().localeCompare(b.fromName.toLowerCase());
+              });
+            }
+            
+            // Update current list
+            if (showExclusions.value) {
+              exclusionsData.value = toKeep;
+            } else {
+              subjectsData.value = toKeep;
+            }
+            
+            // Save both files
+            await Promise.all([
+              saveDataToServer('subjects', serializeContent(subjectsData.value)),
+              saveDataToServer('exclusions', serializeContent(exclusionsData.value))
+            ]);
+            
+            statusMessage.value = `Saved! Moved ${toMove.length} item(s)`;
+            
+            // Reload data to ensure sync with server
+            setTimeout(async () => {
+              const [newSubjects, newExclusions] = await Promise.all([
+                loadData('subjects'),
+                loadData('exclusions')
+              ]);
+              subjectsData.value = newSubjects;
+              exclusionsData.value = newExclusions;
+              statusMessage.value = `Loaded ${subjectsData.value.length} subjects, ${exclusionsData.value.length} exclusions`;
+            }, 500);
+            
+          } catch (err) {
+            error.value = err.message;
+            statusMessage.value = 'Error saving';
+          } finally {
+            saving.value = false;
+          }
+        }
+
+        // Handle checkbox change
+        function onCheckboxChange(row) {
+          // Nothing special needed - Vue reactivity handles it
+        }
+
+        // Open message
+        async function openMessage(row) {
+          try {
+            currentMessage.value = null;
+            statusMessage.value = 'Loading message...';
+            
+            const response = await fetch(`/api/message/${row.messageId}`);
+            if (!response.ok) throw new Error('Failed to load message');
+            
+            currentMessage.value = await response.json();
+            statusMessage.value = '';
+          } catch (err) {
+            error.value = err.message;
+            statusMessage.value = 'Error loading message';
+          }
+        }
+
+        // Format email address
+        function formatAddress(addresses) {
+          if (!addresses || !Array.isArray(addresses)) return '';
+          return addresses.map(addr => {
+            if (addr.name) return `${addr.name} <${addr.email}>`;
+            return addr.email;
+          }).join(', ');
+        }
+
+        // Format date
+        function formatDate(dateStr) {
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          return date.toLocaleString();
+        }
+
+        onMounted(() => {
+          initialize();
+        });
+
+        return {
+          showExclusions,
+          loading,
+          saving,
+          error,
+          statusMessage,
+          displayRows,
+          currentMessage,
+          toggleExclusions,
+          saveData,
+          onCheckboxChange,
+          openMessage,
+          formatAddress,
+          formatDate
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

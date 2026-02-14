@@ -5,12 +5,18 @@
   "main": "src/fastmailProc.js",
   "type": "module",
   "scripts": {
-    "start": "node src/fastmailProc.js"
+    "start": "node src/fastmailProc.js",
+    "host": "node src/fastmail-host.js",
+    "dev": "vite public --port 3456"
   },
   "keywords": ["fastmail", "jmap", "email"],
   "author": "Mark Hahn",
   "license": "ISC",
   "dependencies": {
+    "express": "^4.18.2",
     "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }

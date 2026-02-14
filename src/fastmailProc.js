@@ -286,7 +286,7 @@ async function processMessages() {
               }
               
               if (!subjectsByLabel[labelName].has(fromName)) {
-                const subjectLine = `${fromName} | ${message.subject}`;
+                const subjectLine = `${fromName} | ${message.subject} | ${message.id}`;
                 subjectsByLabel[labelName].add(fromName);
                 subjectLinesByLabel[labelName].push(subjectLine);
               }
@@ -352,7 +352,24 @@ async function processMessages() {
   if (SAVE_SUBJECTS && Object.keys(subjectsByLabel).length > 0) {
     const sections = [];
     let totalSubjects = 0;
-    let newSubjectsCount = Object.values(subjectLinesByLabel).reduce((sum, arr) => sum + arr.length, 0);
+    let newSubjectsCount = 0;
+    let skippedDuplicates = 0;
+    
+    // Build set of all existing fromNames across both files to check duplicates
+    // Duplicate checking is by from name only
+    const existingFromNames = new Set();
+    const subjectsContent = existsSync('subjects.txt') ? readFileSync('subjects.txt', 'utf8') : '';
+    const exclusionsContent = existsSync('exclusions.txt') ? readFileSync('exclusions.txt', 'utf8') : '';
+    
+    for (const content of [subjectsContent, exclusionsContent]) {
+      const lines = content.split('\n');
+      for (const line of lines) {
+        if (line.trim() && line.includes(' | ') && !line.match(/^=======.*=======$/)) {
+          const fromName = line.split(' | ')[0];
+          existingFromNames.add(fromName);
+        }
+      }
+    }
     
     // Get all labels sorted alphabetically
     const allLabels = Object.keys(subjectsByLabel).sort();
@@ -363,11 +380,10 @@ async function processMessages() {
       
       if (fromNames.length > 0) {
         // Reconstruct subject lines from the existing data
-        const existingContent = existsSync('subjects.txt') ? readFileSync('subjects.txt', 'utf8') : '';
         const subjectMap = {};
         
-        // Parse existing subjects for this label
-        const lines = existingContent.split('\n');
+        // Parse existing subjects for this label from subjects.txt only
+        const lines = subjectsContent.split('\n');
         let inCurrentLabel = false;
         for (const line of lines) {
           if (line.match(/^=======.*=======$/)) {
@@ -381,12 +397,16 @@ async function processMessages() {
           }
         }
         
-        // Add new subjects from this run
+        // Add new subjects from this run only if not in either file
         if (subjectLinesByLabel[label]) {
           for (const subjectLine of subjectLinesByLabel[label]) {
             const fromName = subjectLine.split(' | ')[0];
-            if (!subjectMap[fromName]) {
+            if (!existingFromNames.has(fromName)) {
               subjectMap[fromName] = subjectLine;
+              existingFromNames.add(fromName);
+              newSubjectsCount++;
+            } else {
+              skippedDuplicates++;
             }
           }
         }
@@ -404,6 +424,9 @@ async function processMessages() {
       writeFileSync('subjects.txt', sections.join('\n\n') + '\n', 'utf8');
       if (newSubjectsCount > 0) {
         console.log(`  Saved ${newSubjectsCount} new subject(s) to subjects.txt`);
+      }
+      if (skippedDuplicates > 0) {
+        console.log(`  Skipped ${skippedDuplicates} duplicate(s) (from name already exists)`);
       }
     }
   }
