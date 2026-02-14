@@ -135,13 +135,27 @@ The system prevents data conflicts:
 
 ## Development
 
-To test locally without nginx:
+To test locally with hot-reload:
 
 ```bash
+# Terminal 1: Start the Express backend
 npm run host
+
+# Terminal 2: Start Vite dev server
+./run
 ```
 
-Then visit http://localhost:3456
+Then visit http://localhost:5173
+
+Vite dev server proxies API calls to the Express server on port 3456.
+
+## Production
+
+For production, the Express server on port 3456 serves static files from the `public/` directory:
+
+```bash
+pm2 start ecosystem.config.cjs
+```
 
 ## Notes
 

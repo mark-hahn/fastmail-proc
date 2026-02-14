@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/fastmailProc.js",
     "host": "node src/fastmail-host.js",
-    "dev": "vite public --port 3456"
+    "dev": "vite"
   },
   "keywords": ["fastmail", "jmap", "email"],
   "author": "Mark Hahn",

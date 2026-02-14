@@ -139,12 +139,13 @@ app.get('/api/message/:messageId', async (req, res) => {
       return res.status(400).json({ error: 'Missing messageId' });
     }
 
-    // Get account ID first
-    const sessionResponse = await jmapRequest([
-      ['Session/get', {}, 'session']
-    ]);
+    // Get session to find account ID
+    const sessionResponse = await fetch('https://api.fastmail.com/.well-known/jmap', {
+      headers: { 'Authorization': `Bearer ${apiToken}` }
+    });
     
-    const accountId = sessionResponse.methodResponses[0][1].primaryAccounts['urn:ietf:params:jmap:mail'];
+    const session = await sessionResponse.json();
+    const accountId = session.primaryAccounts['urn:ietf:params:jmap:mail'];
 
     // Get full message details
     const messageResponse = await jmapRequest([
