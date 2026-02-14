@@ -101,29 +101,22 @@
     
     .from-col {
       width: 250px;
+      cursor: pointer;
+    }
+    
+    .from-col:hover {
+      background: #f0f0f0;
+      text-decoration: underline;
     }
     
     .subject-col {
       width: auto;
-    }
-    
-    .action-col {
-      width: 100px;
-      text-align: center;
-    }
-    
-    .open-btn {
-      padding: 6px 16px;
-      background: #28a745;
-      color: white;
-      border: none;
-      border-radius: 4px;
       cursor: pointer;
-      font-size: 13px;
     }
     
-    .open-btn:hover {
-      background: #218838;
+    .subject-col:hover {
+      background: #f0f0f0;
+      text-decoration: underline;
     }
     
     .label-row {
@@ -279,27 +272,23 @@
           <th class="checkbox-col"></th>
           <th class="from-col">From</th>
           <th class="subject-col">Subject</th>
-          <th class="action-col">Action</th>
         </tr>
       </thead>
       <tbody>
         <template v-for="(row, index) in displayRows" :key="index">
           <tr v-if="row.type === 'blank'" class="blank-row">
-            <td colspan="4"></td>
+            <td colspan="3"></td>
           </tr>
           <tr v-else-if="row.type === 'label'" class="label-row">
             <td></td>
-            <td colspan="3">{{ row.label }}</td>
+            <td colspan="2">{{ row.label }}</td>
           </tr>
           <tr v-else>
             <td class="checkbox-col">
-              <input type="checkbox" v-model="row.checked" @change="onCheckboxChange(row)">
+              <input type="checkbox" v-model="row.item.checked" @change="onCheckboxChange(row.item)">
             </td>
-            <td class="from-col">{{ row.fromName }}</td>
-            <td class="subject-col">{{ row.subject }}</td>
-            <td class="action-col">
-              <button class="open-btn" @click="openMessage(row)">Open</button>
-            </td>
+            <td class="from-col" @click="openMessage(row.item)">{{ row.item.fromName }}</td>
+            <td class="subject-col" @click="openMessage(row.item)">{{ row.item.subject }}</td>
           </tr>
         </template>
       </tbody>
@@ -418,7 +407,7 @@
               rows.push({ type: 'label', label: item.label });
               lastLabel = item.label;
             }
-            rows.push({ type: 'data', ...item });
+            rows.push({ type: 'data', item });
           }
           
           return rows;
